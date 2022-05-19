@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/kmeansweb/static/js/main.690923dd.js",
+    "index.html": "/kmeansweb/index.html",
+    "main.690923dd.js.map": "/kmeansweb/static/js/main.690923dd.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.690923dd.js"
+  ]
+}
