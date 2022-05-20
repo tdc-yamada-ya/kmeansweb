@@ -3,6 +3,10 @@ import { Box, Button, TextField, Typography } from "@mui/material";
 import { Fragment, useState } from "react";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import kmeans from "kmeans-ts";
+import { parseCSV } from "./parseCSV";
+import { matrixToCSV } from "./matrixToCSV";
+import Highcharts from "highcharts";
+import HighchartsReact from "highcharts-react-official";
 
 const SectionHeader = ({
   title,
@@ -11,7 +15,7 @@ const SectionHeader = ({
   title: string;
   description: string;
 }) => (
-  <Box sx={{ padding: "0.5rem 1rem" }}>
+  <Box sx={{ display: "flex", flexDirection: "column" }}>
     <Typography color="primary" variant="subtitle1">
       {title}
     </Typography>
@@ -53,51 +57,50 @@ const Textarea = ({
   />
 );
 
-const splitLines = (s: string) => s.split("\n");
-
-const splitElements = (s: string) => s.split(",");
-
-const csvToMatrix = (s: string): Array<Array<number>> => {
-  if (!s) {
-    return new Array<Array<number>>();
-  }
-
-  const ll = splitLines(s);
-  if (ll.length === 0) {
-    return new Array<Array<number>>();
-  }
-
-  const r = ll.length;
-  const c = splitElements(ll[0]).length;
-  const a = new Array<Array<number>>(r);
-  for (let i = 0; i < r; i++) {
-    a[i] = new Array<number>(c);
-  }
-
-  ll.forEach((l, i) => {
-    splitElements(l).forEach((e, j) => {
-      const n = parseFloat(e.trim());
-      a[i][j] = isNaN(n) ? 0 : n;
-    });
-  });
-
-  return a;
-};
-
-const matrixToCsv = (a: Array<Array<number>>): string =>
-  a.map((e) => e.join(",")).join("\n");
-
 export const App = () => {
-  const [data, setData] = useState("");
+  const [inputVectorsCSV, setInputVectorsCSV] = useState(
+    "100,200\n300,400\n500,600"
+  );
   const [k, setK] = useState("10");
-  const [result, setResult] = useState("");
+  const [outputCentroidsCSV, setOutputCentroidsCSV] = useState("");
+  const [outputIndexesCSV, setOutputIndexesCSV] = useState("");
+  const [chartOptions, setChartOptions] = useState({});
 
   const run = () => {
-    const a = csvToMatrix(data);
+    const a = parseCSV(inputVectorsCSV);
+    if (a.length <= 1) {
+      setOutputCentroidsCSV("");
+      return;
+    }
+
     const b = parseInt(k);
-    const { centroids } = kmeans(a, b, "kmeans++");
-    const c = matrixToCsv(centroids);
-    setResult(c);
+    const { centroids, indexes } = kmeans(a, b, "kmeans++");
+    setOutputCentroidsCSV(matrixToCSV(centroids));
+    setOutputIndexesCSV(indexes.join("\n"));
+
+    const d = a[0].length;
+
+    if (d === 1) {
+      const ss = new Array<{ data: number[][] }>(b);
+      for (let i = 0; i < b; i++) ss[i] = { data: [] };
+      a.forEach((d, i) => ss[indexes[i]].data.push([d[0], 0]));
+
+      setChartOptions({
+        chart: { type: "scatter", zoomType: "xy" },
+        title: { text: "Plot" },
+        series: ss,
+      });
+    } else if (d === 2) {
+      const ss = new Array<{ data: number[][] }>(b);
+      for (let i = 0; i < b; i++) ss[i] = { data: [] };
+      a.forEach((d, i) => ss[indexes[i]].data.push(d));
+
+      setChartOptions({
+        chart: { type: "scatter", zoomType: "xy" },
+        title: { text: "Plot" },
+        series: ss,
+      });
+    }
   };
 
   return (
@@ -118,7 +121,15 @@ export const App = () => {
           }}
         >
           <Box>
-            <Box sx={{ padding: "0.5rem" }}>
+            <Box
+              sx={{
+                alignItems: "center",
+                padding: "0.5rem 1rem",
+                display: "flex",
+                gap: "0.5rem",
+              }}
+            >
+              <Typography variant="subtitle2">k-means web</Typography>
               <Button
                 variant="contained"
                 size="small"
@@ -132,32 +143,44 @@ export const App = () => {
           <Divider />
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
-              gridTemplateRows: "100%",
+              display: "flex",
+              flexWrap: "nowrap",
+              gap: "0.1rem",
+              overflowX: "auto",
             }}
           >
             <Box
               sx={{
                 display: "grid",
+                flexShrink: 0,
+                gap: "1rem",
                 gridTemplateColumns: "100%",
                 gridTemplateRows: "min-content 1fr",
+                padding: "1rem",
+                width: "25rem",
               }}
             >
               <SectionHeader
-                title="Data"
+                title="Input Vectors"
                 description="Enter numerical data for k-means clustering. The data format is comma-separated CSV. Write a vector per line."
               />
               <Box css={{ background: "#FFFDE7" }}>
-                <Textarea value={data} onChange={(v) => setData(v)} />
+                <Textarea
+                  value={inputVectorsCSV}
+                  onChange={(v) => setInputVectorsCSV(v)}
+                />
               </Box>
             </Box>
             <Divider />
             <Box
               sx={{
                 display: "grid",
+                flexShrink: 0,
+                gap: "1rem",
                 gridTemplateColumns: "100%",
                 gridTemplateRows: "min-content 1fr",
+                padding: "1rem",
+                width: "25rem",
               }}
             >
               <Box>
@@ -167,31 +190,66 @@ export const App = () => {
                 />
               </Box>
               <Box>
-                <Box sx={{ padding: "1rem" }}>
-                  <TextField
-                    label="Num clusters"
-                    size="small"
-                    value={k}
-                    onChange={(e) => setK(e.target.value)}
-                  />
-                </Box>
+                <TextField
+                  label="Num clusters"
+                  size="small"
+                  value={k}
+                  onChange={(e) => setK(e.target.value)}
+                />
               </Box>
             </Box>
             <Divider />
             <Box
               sx={{
                 display: "grid",
+                flexShrink: 0,
+                gap: "1rem",
                 gridTemplateColumns: "100%",
                 gridTemplateRows: "min-content 1fr",
+                padding: "1rem",
+                width: "25rem",
               }}
             >
               <SectionHeader
-                title="Result Centroids"
-                description="Centroid vectors for each cluster."
+                title="Output Centroids"
+                description="The following text is an array of center vectors for each cluster."
               />
               <Box css={{ background: "#E3F2FD" }}>
-                <Textarea value={result} readOnly />
+                <Textarea value={outputCentroidsCSV} readOnly />
               </Box>
+            </Box>
+            <Divider />
+            <Box
+              sx={{
+                display: "grid",
+                flexShrink: 0,
+                gap: "1rem",
+                gridTemplateColumns: "100%",
+                gridTemplateRows: "min-content 1fr",
+                padding: "1rem",
+                width: "25rem",
+              }}
+            >
+              <SectionHeader
+                title="Output Indexes"
+                description="The following text is an array of indices indicating which cluster each vector corresponds to."
+              />
+              <Box css={{ background: "#E3F2FD" }}>
+                <Textarea value={outputIndexesCSV} readOnly />
+              </Box>
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                flexShrink: 0,
+                gap: "1rem",
+                gridTemplateColumns: "100%",
+                gridTemplateRows: "min-content 1fr",
+                padding: "1rem",
+                width: "50rem",
+              }}
+            >
+              <HighchartsReact highcharts={Highcharts} options={chartOptions} />
             </Box>
           </Box>
         </Box>
